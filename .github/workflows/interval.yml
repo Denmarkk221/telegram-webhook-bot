@@ -1,0 +1,25 @@
+name: ⏱️ Каждые 10 секунд
+
+on:
+  workflow_dispatch:
+
+jobs:
+  send-messages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    
+    steps:
+    - name: Отправляем каждые 10 секунд
+      env:
+        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        CHAT_ID: ${{ secrets.CHAT_ID }}
+      run: |
+        for i in {1..12}
+        do
+          curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+            -d "chat_id=$CHAT_ID" \
+            -d "text=Сообщение $i/12 ⏰ $(date '+%H:%M:%S')"
+          
+          echo "Отправлено $i"
+          sleep 10
+        done
