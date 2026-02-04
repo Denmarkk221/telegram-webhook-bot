@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""
+🤖 Telegram Bot Webhook Server
+Отвечает на команду /test мгновенно
+"""
+
+from flask import Flask, request, jsonify
+import os
+import logging
+import requests
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+
+# Получаем токен из переменных окружения
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+PORT = int(os.environ.get('PORT', 5000))
+
+def send_telegram_message(chat_id, text):
+    """Отправляет сообщение в Telegram"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {
+        'chat_id': chat_id,
+        'text': text,
+        'parse_mode': 'HTML'
+    }
+    
+    try:
+        response = requests.post(url, json=payload, timeout=5)
+        response.raise_for_status()
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка отправки сообщения: {e}")
+        return False
+
+@app.route('/')
+def home():
+    """Главная страница"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>🤖 Telegram Bot Webhook</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+            .container { max-width: 600px; margin: 0 auto; }
+            h1 { color: #0088cc; }
+            .status { background: #f0f8ff; padding: 20px; border-radius: 10px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🤖 Telegram Bot Webhook</h1>
+            <div class="status">
+                <p>✅ Сервер работает</p>
+                <p>📞 Эндпоинт вебхука: <code>/webhook</code></p>
+                <p>⚡ Команда: <code>/test</code></p>
+                <p>💬 Ответ: <code>"тест сработал!"</code></p>
+            </div>
+            <p>Настрой вебхук в Telegram:</p>
+            <code>https://api.telegram.org/bot[ВАШ_ТОКЕН]/setWebhook?url=[URL_ЭТОГО_СЕРВЕРА]/webhook</code>
+        </div>
+    </body>
+    </html>
+    """
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """Обрабатывает сообщения от Telegram"""
+    try:
+        data = request.get_json()
+        logger.info(f"Получены данные: {data}")
+        
+        # Проверяем структуру сообщения
+        if 'message' in data:
+            message = data['message']
+            chat_id = message['chat']['id']
+            text = message.get('text', '').strip()
+            
+            logger.info(f"Сообщение от {chat_id}: {text}")
+            
+            # Обрабатываем команду /test
+            if text == '/test':
+                logger.info(f"Обрабатываю команду /test от {chat_id}")
+                success = send_telegram_message(chat_id, "тест сработал! 🎉")
+                
+                if success:
+                    logger.info(f"Ответ отправлен пользователю {chat_id}")
+                    return jsonify({'status': 'ok', 'message': 'Ответ отправлен'})
+                else:
+                    logger.error(f"Ошибка отправки ответа пользователю {chat_id}")
+                    return jsonify({'status': 'error', 'message': 'Ошибка отправки'}), 500
+            
+            # Можно добавить другие команды
+            elif text == '/start':
+                send_telegram_message(chat_id, "🤖 Бот запущен!\n\nКоманды:\n/test - тестовая команда")
+                return jsonify({'status': 'ok'})
+        
+        return jsonify({'status': 'ok', 'message': 'Сообщение получено'})
+    
+    except Exception as e:
+        logger.error(f"Ошибка обработки вебхука: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Проверка здоровья сервера"""
+    return jsonify({'status': 'healthy', 'service': 'telegram-bot-webhook'})
+
+if __name__ == '__main__':
+    logger.info(f"🚀 Запуск сервера на порту {PORT}")
+    logger.info(f"🤖 Токен бота: {'УСТАНОВЛЕН' if BOT_TOKEN else 'НЕ УСТАНОВЛЕН'}")
+    
+    if not BOT_TOKEN:
+        logger.warning("⚠️  BOT_TOKEN не установлен! Установи переменную окружения.")
+    
+    app.run(host='0.0.0.0', port=PORT, debug=False)
